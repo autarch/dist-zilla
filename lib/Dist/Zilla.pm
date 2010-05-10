@@ -1087,20 +1087,21 @@ sub _global_config {
   my $homedir = File::HomeDir->my_home
     or Carp::croak("couldn't determine home directory");
 
-  my $file = dir($homedir)->file('.dzil');
-  return unless -e $file;
+  my $dzil_dir = dir($homedir)->file('.dzil');
 
-  if (-d $file) {
-    return Dist::Zilla::Config::Finder->new->read_config({
-      root     =>  dir($homedir)->subdir('.dzil'),
-      basename => 'config',
-    });
-  } else {
-    return Dist::Zilla::Config::Finder->new->read_config({
-      root     => dir($homedir),
-      filename => '.dzil',
-    });
-  }
+  my $finder = Dist::Zilla::Config::Finder->new({
+    assembler => Dist::Zilla::Util::MVPAssembler->new,
+  });
+
+  return $finder->assembler->sequence unless -e $dzil_dir;
+
+  confess("non-directory ~/.dzil is illegal; switch to ~/.dzil/config.ini")
+    if ! -d $dzil_dir;
+
+  return $finder->read_config({
+    root     =>  $dzil_dir,
+    basename => 'config',
+  });
 }
 
 sub _global_config_for {
