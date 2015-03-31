@@ -37,15 +37,13 @@ sub before_release {
 
   $self->log("Extracting $tgz to $tmpdir");
 
-  require Archive::Tar;
+  my $method
+    = Class::Load::load_optional_class('Archive::Tar::Wrapper',
+    { -version => 0.15 })
+    ? '_untar_archive_with_wrapper'
+    : '_untar_archive';
 
-  my @files = do {
-    my $wd = File::pushd::pushd($tmpdir);
-    Archive::Tar->extract_archive("$tgz");
-  };
-
-  $self->log_fatal([ "Failed to extract archive: %s", Archive::Tar->error ])
-    unless @files;
+  $self->$method($tmpdir, $tgz);
 
   # Run tests on the extracted tarball:
   my $target = $tmpdir->subdir( $self->zilla->dist_basename );
@@ -56,6 +54,30 @@ sub before_release {
 
   $self->log("all's well; removing $tmpdir");
   $tmpdir->rmtree;
+}
+
+sub _untar_archive {
+  my ($self, $tmpdir, $tgz) = @_;
+
+  $self->log(
+    'untarring archive for testing with Archive::Tar; install Archive::Tar::Wrapper 0.15 or newer for improved speed'
+  );
+
+  my @files = do {
+    my $wd = File::pushd::pushd($tmpdir);
+    Archive::Tar->extract_archive("$tgz");
+  };
+
+  $self->log_fatal([ 'Failed to extract archive: %s', Archive::Tar->error ])
+    unless @files;
+}
+
+sub _untar_archive_with_wrapper {
+  my ($self, $tmpdir, $tgz) = @_;
+  $self->log("extracting to $tmpdir");
+  my $archive = Archive::Tar::Wrapper->new(tmpdir => $tmpdir);
+  $archive->read("$tgz")
+    or $self->log_fatal('Failed to extract archive');
 }
 
 __PACKAGE__->meta->make_immutable;
